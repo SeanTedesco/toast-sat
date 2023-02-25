@@ -28,10 +28,16 @@
  *  - ARDUINO 5.0V --> HV
  *  - ARDUINO GND  --> GND
  *
+ *  - STATUS LED (GREEN) --> DIGITAL PIN 2
+ *
  * Requirements:
  *  BMP180 Library: https://learn.sparkfun.com/tutorials/bmp180-barometric-pressure-sensor-hookup-/all#res
  */
 
+/*****************************************************************
+* USER INPUT
+*/
+#define DEBUG 0 // set to 0 to disable debug traces
 
 /*****************************************************************
  * INCLUDES
@@ -44,8 +50,6 @@
 /*****************************************************************
  * PIN SETUP and GLOBAL VARIABLES
  */
-#define DEBUG 1 // set to 0 to disable debug traces
-
 #if DEBUG
   #define debug_serial_begin(...) Serial.begin(__VA_ARGS__);
   #define debug_print(...)    Serial.print(__VA_ARGS__)
@@ -59,6 +63,7 @@
 #endif
 
 // pin specifications
+const int led_green_pin = 2;  // output
 const int sd_card_csn = 10;   // output
 const int temp_sens_pin = A6; // input
 
@@ -74,6 +79,7 @@ double T, P, kpa, baseline;
 // sd card reader / writer
 File myFile;
 unsigned long time_stamp; 
+unsigned long seconds_since_boot;
 
 /*****************************************************************
  * FUNCTION DECLARATIONS
@@ -91,8 +97,10 @@ void setup(){
     ; // wait for serial port to connect.
   }
   
-  //turn on the green LED to let the user know the system is working
+  //turn on the status LEDs to let the user know the system is working
   digitalWrite(LED_BUILTIN, HIGH);
+  pinMode(led_green_pin, OUTPUT);
+  digitalWrite(led_green_pin, HIGH);
   debug_println("*** ToastSat System Started ***");
   
   // set up the temperature sensor
@@ -103,7 +111,7 @@ void setup(){
   debug_print("initializing bmp180 sensor... ");
   if (!pressure_sensor.begin()){
     debug_println("initialization failed!");
-    digitalWrite(LED_BUILTIN, LOW);
+    digitalWrite(led_green_pin, LOW);
     while(1);
   }
   debug_println("initialization done.");
@@ -115,7 +123,7 @@ void setup(){
   debug_print("Initializing SD card... ");
   if (!SD.begin(sd_card_csn)) {
     debug_println("initialization failed!");
-    digitalWrite(LED_BUILTIN, LOW);
+    digitalWrite(led_green_pin, LOW);
     while (1);
   }
   debug_println("initialization done.");
@@ -129,16 +137,18 @@ void setup(){
     // if the file opened properly, write to it:
     if (myFile) {
       debug_print("writing to weather.csv... ");
-      myFile.println("time (s), TMP36 (C),BMP180 (C), Pressure (kPa)");
+      myFile.println("time(s), TMP36(C),BMP180(C), Pressure(kPa)");
       // close the file:
       myFile.close();
       debug_println("done.");
     } else {
       // if the file didn't open, print an error:
       debug_println("error opening weather.csv");
-      digitalWrite(LED_BUILTIN, LOW);
+      digitalWrite(led_green_pin, LOW);
       while (1);
     }
+  delay(5000);
+  digitalWrite(led_green_pin, LOW);
 }
 
 
@@ -147,7 +157,18 @@ void setup(){
  */
 void loop(){
 
+  digitalWrite(led_green_pin, LOW);
+  delay(50);
+  digitalWrite(led_green_pin, HIGH);
+  delay(50);
+  digitalWrite(led_green_pin, LOW);
+  delay(50);
+  digitalWrite(led_green_pin, HIGH);
+  delay(50);
+  digitalWrite(led_green_pin, LOW);
+
   time_stamp = millis();
+  seconds_since_boot = time_stamp / 1000;
     
   // read the analog input at each sensor
   analog_input = analogRead(temp_sens_pin);
@@ -169,7 +190,6 @@ void loop(){
   debug_println(T);
 
   delay(100);
-  
   P = getPressure();
   kpa = P*0.1;
   debug_print("press: ");
@@ -179,7 +199,7 @@ void loop(){
   myFile = SD.open("weather.csv", FILE_WRITE);
   if (myFile) {
     debug_print("writing to weather.csv... ");
-    myFile.print(time_stamp);
+    myFile.print(seconds_since_boot);
     myFile.print(",");
     myFile.print(temp_celsius);
     myFile.print(",");
@@ -193,29 +213,35 @@ void loop(){
   } else {
     // if the file cannot be opened flash the LED and print an error message. 
     debug_println("error opening weather.csv");
-    digitalWrite(LED_BUILTIN, LOW);
-    delay(100);
     digitalWrite(LED_BUILTIN, HIGH);
+    delay(50);
+    digitalWrite(LED_BUILTIN, LOW);
+    delay(50);
+    digitalWrite(LED_BUILTIN, HIGH);
+    delay(50);
+    digitalWrite(LED_BUILTIN, LOW);
   }
 
-  myFile = SD.open("weather.csv");
-  if (myFile) {
-    debug_println("weather.csv:");
-    while (myFile.available()) {
-      debug_write(myFile.read());
+  if (DEBUG){
+      myFile = SD.open("weather.csv");
+    if (myFile) {
+      debug_println("contents of weather.csv:");
+      while (myFile.available()) {
+        debug_write(myFile.read());
+      }
+      myFile.close();
+    } else {
+      debug_println("error opening weather.csv");
+      digitalWrite(LED_BUILTIN, HIGH);
+      delay(50);
+      digitalWrite(LED_BUILTIN, LOW);
+      delay(50);
+      digitalWrite(LED_BUILTIN, HIGH);
+      delay(50);
+      digitalWrite(LED_BUILTIN, LOW);
     }
-    myFile.close();
-  } else {
-    debug_println("error opening weather.csv");
-    digitalWrite(LED_BUILTIN, HIGH);
-    delay(50);
-    digitalWrite(LED_BUILTIN, LOW);
-    delay(50);
-    digitalWrite(LED_BUILTIN, HIGH);
-    delay(50);
-    digitalWrite(LED_BUILTIN, LOW);
   }
-    
+
   delay(1000);
 }
 
