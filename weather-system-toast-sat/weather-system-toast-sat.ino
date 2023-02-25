@@ -44,10 +44,23 @@
 /*****************************************************************
  * PIN SETUP and GLOBAL VARIABLES
  */
-bool enable_debug = true; 
- 
-const int sd_card_csn = 10;   //output
-const int temp_sens_pin = A6; //input
+#define DEBUG 1 // set to 0 to disable debug traces
+
+#if DEBUG
+  #define debug_serial_begin(...) Serial.begin(__VA_ARGS__);
+  #define debug_print(...)    Serial.print(__VA_ARGS__)
+  #define debug_write(...)    Serial.write(__VA_ARGS__)
+  #define debug_println(...)  Serial.println(__VA_ARGS__)
+#else
+  #define debug_serial_begin(...)
+  #define debug_print(...)
+  #define debug_write(...)
+  #define debug_println(...)
+#endif
+
+// pin specifications
+const int sd_card_csn = 10;   // output
+const int temp_sens_pin = A6; // input
 
 // tmp36 temperature sensor
 int analog_input;
@@ -73,59 +86,58 @@ double getPressure(void);
 void setup(){
 
   // open serial communications 
-  Serial.begin(9600);
+  debug_serial_begin(9600);
   while (!Serial) {
     ; // wait for serial port to connect.
   }
   
   //turn on the green LED to let the user know the system is working
   digitalWrite(LED_BUILTIN, HIGH);
-  Serial.println("system started.");
+  debug_println("*** ToastSat System Started ***");
   
   // set up the temperature sensor
   pinMode(temp_sens_pin, INPUT);
-  Serial.println("initializing tmp36 sensor... initialization done.");
+  debug_println("initializing tmp36 sensor... initialization done.");
 
   // set up the pressure sensor
-  Serial.println("initializing bmp180 sensor... ");
+  debug_print("initializing bmp180 sensor... ");
   if (!pressure_sensor.begin()){
-    Serial.println("initialization failed!");
+    debug_println("initialization failed!");
     digitalWrite(LED_BUILTIN, LOW);
-     while(1);
+    while(1);
   }
-  Serial.println("initialization done.");
+  debug_println("initialization done.");
 
   // Get the baseline pressure
   baseline = getPressure();
 
   // set up the sd card reader / writer  
-  Serial.print("Initializing SD card...");
+  debug_print("Initializing SD card... ");
   if (!SD.begin(sd_card_csn)) {
-    Serial.println("initialization failed!");
+    debug_println("initialization failed!");
     digitalWrite(LED_BUILTIN, LOW);
     while (1);
   }
-  Serial.println("initialization done.");
+  debug_println("initialization done.");
 
 
   if (SD.exists("weather.csv")){
     SD.remove("weather.csv");
-    Serial.println("removed old weather file.");
+    debug_println("removed old weather file.");
   }
   myFile = SD.open("weather.csv", FILE_WRITE);
     // if the file opened properly, write to it:
     if (myFile) {
-      Serial.print("writing to weather.csv...");
-      myFile.println("time,temp1,time2,press");
+      debug_print("writing to weather.csv... ");
+      myFile.println("time (s), TMP36 (C),BMP180 (C), Pressure (kPa)");
       // close the file:
       myFile.close();
-      Serial.println("done.");
+      debug_println("done.");
     } else {
       // if the file didn't open, print an error:
-      Serial.println("error opening weather.csv");
+      debug_println("error opening weather.csv");
       digitalWrite(LED_BUILTIN, LOW);
-      delay(100);
-      digitalWrite(LED_BUILTIN, HIGH);
+      while (1);
     }
 }
 
@@ -143,8 +155,8 @@ void loop(){
   raw_voltage = analog_input * (5.0/1024.0); 
   // convert voltage value to a temperature value
   temp_celsius = (raw_voltage - 0.5) * 100;
-  Serial.print("temp1: ");
-  Serial.println(temp_celsius);
+  debug_print("temp1: ");
+  debug_println(temp_celsius);
 
   delay(100);
 
@@ -153,38 +165,34 @@ void loop(){
     delay(status);
     status = pressure_sensor.getTemperature(T);
   }
-  Serial.print("temp2: ");
-  Serial.println(T);
+  debug_print("temp2: ");
+  debug_println(T);
 
   delay(100);
   
   P = getPressure();
   kpa = P*0.1;
-  Serial.print("press: ");
-  Serial.println(kpa);
+  debug_print("press: ");
+  debug_println(kpa);
 
   // save this loop's collected data to the sd-card by printing the data to in .csv formatting 
   myFile = SD.open("weather.csv", FILE_WRITE);
   if (myFile) {
-    Serial.print("writing to weather.csv... ");
-    myFile.print("time,");
+    debug_print("writing to weather.csv... ");
     myFile.print(time_stamp);
     myFile.print(",");
-    myFile.print("temp1,");
     myFile.print(temp_celsius);
     myFile.print(",");
-    myFile.print("temp2,");
     myFile.print(T);
     myFile.print(",");
-    myFile.print("press,");
     myFile.println(kpa);
     
     // close the file:
     myFile.close();
-    Serial.println("done.");
+    debug_println("done.");
   } else {
     // if the file cannot be opened flash the LED and print an error message. 
-    Serial.println("error opening weather.csv");
+    debug_println("error opening weather.csv");
     digitalWrite(LED_BUILTIN, LOW);
     delay(100);
     digitalWrite(LED_BUILTIN, HIGH);
@@ -192,16 +200,20 @@ void loop(){
 
   myFile = SD.open("weather.csv");
   if (myFile) {
-    Serial.println("weather.csv:");
+    debug_println("weather.csv:");
     while (myFile.available()) {
-      Serial.write(myFile.read());
+      debug_write(myFile.read());
     }
     myFile.close();
   } else {
-    Serial.println("error opening weather.csv");
-    digitalWrite(LED_BUILTIN, LOW);
-    delay(100);
+    debug_println("error opening weather.csv");
     digitalWrite(LED_BUILTIN, HIGH);
+    delay(50);
+    digitalWrite(LED_BUILTIN, LOW);
+    delay(50);
+    digitalWrite(LED_BUILTIN, HIGH);
+    delay(50);
+    digitalWrite(LED_BUILTIN, LOW);
   }
     
   delay(1000);
@@ -229,11 +241,11 @@ double getPressure(void) {
         if (status != 0) {
           return(P);
         } 
-        else Serial.println("error retrieving pressure measurement\n");
+        else debug_println("error retrieving pressure measurement.");
       }
-      else Serial.println("error starting pressure measurement\n");
+      else debug_println("error starting pressure measurement.");
     }
-    else Serial.println("error retrieving temperature measurement\n");
+    else debug_println("error retrieving temperature measurement.");
   }
-  else Serial.println("error starting temperature measurement\n");
+  else debug_println("error starting temperature measurement.");
 }
