@@ -37,7 +37,8 @@
 /*****************************************************************
 * USER INPUT
 */
-#define DEBUG 0 // set to 0 to disable debug traces
+#define DEBUG       1  // set to 0 to disable debug traces
+#define OVERWRITE   1  // set to 0 to disable overwriting
 
 /*****************************************************************
  * INCLUDES
@@ -128,11 +129,11 @@ void setup(){
   }
   debug_println("initialization done.");
 
-
-  if (SD.exists("weather.csv")){
+  if (SD.exists("weather.csv") && OVERWRITE){
     SD.remove("weather.csv");
     debug_println("removed old weather file.");
   }
+
   myFile = SD.open("weather.csv", FILE_WRITE);
     // if the file opened properly, write to it:
     if (myFile) {
